@@ -4,8 +4,7 @@ name: Backend CI - Test, Build and Push Images to ACR
 
 # Trigger the workflow on pushes to the 'main' branch
 # You can also add 'pull_request:' to run on PRs
-on:
-  # Manual trigger
+
 on:
   workflow_dispatch:
   push:
@@ -13,7 +12,7 @@ on:
 
   # Automatically on pushes to main branch
 
-      - main
+      
     paths: # Only trigger if changes are in backend directories
       - 'backend/**'
       - '.github/workflows/backend_ci.yml' # Trigger if this workflow file changes
@@ -128,7 +127,10 @@ jobs:
 
     # Login to Azure Container Registry (ACR)
     - name: Login to Azure Container Registry
-      run: az acr login --name ${{ env.ACR_LOGIN_SERVER }}
+      run: |
+     
+       ACR_NAME="${{ env.ACR_LOGIN_SERVER%%.azurecr.io }}"
+       az acr login --name "$ACR_NAME"
 
     # Build and Push Docker image for Product Service
     - name: Build and Push Product Service Image
