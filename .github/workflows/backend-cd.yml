@@ -11,8 +11,8 @@ on:
         description: 'Resource Group of the AKS Cluster'
         required: true
         default: 'sit722-week08'
-      aks_acr_name:
-        description: 'Name of ACR (unused now; kept for UI)'
+      aks_acr_name:        # kept only for UI; not used anymore
+        description: 'Name of ACR'
         required: true
         default: 'sit722acr08001'
 
@@ -29,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Log in to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -41,23 +41,23 @@ jobs:
             --name "${{ inputs.aks_cluster_name }}" \
             --overwrite-existing
 
-      # ❌ Attach ACR step removed (we use imagePullSecrets instead)
+      # ❌ Attach ACR step removed (we use imagePullSecrets & acr-auth secret)
 
-      - name: Deploy Backend Infrastructure (Namespace, ConfigMaps, Secrets, DBs)
+      - name: Deploy Backend Infrastructure (Namespace, ConfigMaps, Secrets, Databases)
         run: |
           kubectl apply -f k8s/configmaps.yaml
           kubectl apply -f k8s/secrets.yaml
           kubectl apply -f k8s/product-db.yaml
           kubectl apply -f k8s/order-db.yaml
 
-      - name: Deploy Backend Services (Product & Order)
+      - name: Deploy Backend Microservices (Product, Order)
         run: |
           kubectl apply -f k8s/product-service.yaml
           kubectl apply -f k8s/order-service.yaml
           kubectl rollout status deploy/product-service-w08e1 --timeout=180s
           kubectl rollout status deploy/order-service-w08e1   --timeout=180s
 
-      - name: Wait for LoadBalancer IPs
+      - name: Wait for Backend LoadBalancer IPs
         run: |
           for i in $(seq 1 60); do
             PRODUCT_IP=$(kubectl get svc product-service-w08e1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
@@ -72,17 +72,17 @@ jobs:
           done
           test -n "$PRODUCT_IP" && test -n "$ORDER_IP"
 
-      - name: Capture Product Service IP
+      - name: Capture Product Service IP for Workflow Output
         id: get_product_ip
         run: echo "external_ip=${{ env.PRODUCT_IP }}" >> $GITHUB_OUTPUT
 
-      - name: Capture Order Service IP
+      - name: Capture Order Service IP for Workflow Output
         id: get_order_ip
         run: echo "external_ip=${{ env.ORDER_IP }}" >> $GITHUB_OUTPUT
 
       - name: Show Services
         run: kubectl get svc
 
-      - name: Logout
+      - name: Logout from Azure
         if: always()
         run: az logout
