@@ -1,0 +1,59 @@
+name: CD - Deploy Frontend to AKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      PRODUCT_IP:
+        description: "External IP of Product Service"
+        required: true
+      ORDER_IP:
+        description: "External IP of Order Service"
+        required: true
+
+env:
+  RESOURCE_GROUP: sit722-week08
+  CLUSTER_NAME: sit722aks08001
+  ACR_LOGIN_SERVER: sit722acr08001.azurecr.io
+  NAMESPACE: default
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Inject Backend IPs into frontend/main.js
+        run: |
+          sed -i "s|const PRODUCT_SERVICE_IP.*|const PRODUCT_SERVICE_IP = \"http://${{ github.event.inputs.PRODUCT_IP }}:8000\";|" frontend/main.js
+          sed -i "s|const ORDER_SERVICE_IP.*|const ORDER_SERVICE_IP = \"http://${{ github.event.inputs.ORDER_IP }}:8000\";|" frontend/main.js
+          echo "Updated frontend/main.js with backend IPs"
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build and Push Frontend Image
+        run: |
+          az acr login --name sit722acr08001
+          IMAGE=${{ env.ACR_LOGIN_SERVER }}/frontend_service:latest
+          docker build -t $IMAGE ./frontend
+          docker push $IMAGE
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: sit722-week08
+          cluster-name: sit722aks08001
+
+      - name: Deploy Frontend Service
+        run: |
+          kubectl apply -f k8s/frontend.yaml -n ${{ env.NAMESPACE }}
+
+      - name: Wait for Frontend External IP
+        run: |
+          echo "Waiting for Frontend external IP..."
+          kubectl get svc -n ${{ env.NAMESPACE }}
+          sleep 30
+          kubectl get svc -n ${{ env.NAMESPACE }}
