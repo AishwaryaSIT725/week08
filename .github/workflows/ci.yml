@@ -12,25 +12,41 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # paths must match your repo (underscores)
         service: [ backend/order_service, backend/product_service, frontend ]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python (if requirements.txt exists)
-        if: hashFiles('${{ matrix.service }}/requirements.txt') != ''
+      # ---------- Python services (backends) ----------
+      - name: Set up Python
+        if: ${{ hashFiles(format('{0}/requirements.txt', matrix.service)) != '' }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Install Python deps
-        if: hashFiles('${{ matrix.service }}/requirements.txt') != ''
+        if: ${{ hashFiles(format('{0}/requirements.txt', matrix.service)) != '' }}
         run: |
           cd ${{ matrix.service }}
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # ---------- Node service (frontend) ----------
+      - name: Set up Node.js
+        if: ${{ hashFiles(format('{0}/package.json', matrix.service)) != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Node deps
+        if: ${{ hashFiles(format('{0}/package.json', matrix.service)) != '' }}
+        run: |
+          cd ${{ matrix.service }}
+          npm ci || npm install
+
+      # ---------- Build Docker for all services ----------
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
